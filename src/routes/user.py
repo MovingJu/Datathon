@@ -8,20 +8,26 @@ router = APIRouter(
     tags=["유저 정보 조회 및 수정 엔드포인트"]
 )
 
-@router.get("/me")
-async def get_user(request: Request):
-    nickname: str = request.cookies.get("session") or ""
-    if not nickname:
-        return {"code": 401, "message": "Please login"}
-    
+@router.get("/get_sellers")
+async def get_sellers(request: Request):
     document: dict = await modules.read("user", "data") or {}
     data: list[dict] = document.get("data", [])
-    
+
+    sellers = []
     for user in data:
-        if user.get("nickname") == nickname:
-            return {"code": 200, "data": user}
+        # 판매자만 가져온다고 가정 (예: clothes나 baby 있는 유저)
+        if user.get("clothes") or user.get("baby"):
+            sellers.append({
+                "id": user.get("nickname"),
+                "nickname": user.get("nickname"),
+                "avatar": user.get("avatar", "/placeholder.svg"),
+                "bio": user.get("bio", ""),
+                "childrenTags": user.get("childrenTags", []),
+                "products": user.get("clothes", [])  # clothes 배열을 products로 매핑
+            })
     
-    return {"code": 404, "message": "user not found."}
+    return {"code": 200, "data": sellers}
+
 
 # ----- Pydantic 모델 -----
 class UpdateBasicModel(BaseModel):
