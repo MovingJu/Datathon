@@ -4,7 +4,6 @@ import routes
 
 app = FastAPI()
 
-app.include_router(routes.login.router)
 app.include_router(routes.chat.router)
 
 app.include_router(routes.sign.router)

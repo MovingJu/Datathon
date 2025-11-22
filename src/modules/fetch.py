@@ -32,5 +32,4 @@ async def write(collection: str, data, key: str = "data") -> None:
     query = {key: {"$exists": True}}
     update = {"$set": {key: data}}
 
-    # upsert=True → 존재하지 않으면 새로 생성
     await coll_data.update_one(query, update, upsert=True)

@@ -82,10 +82,49 @@ async def update_location(request: Request, si: str, gu: str):
     return code
 
 @router.post("/update_baby")
-async def update_baby(request: Request):
+async def update_baby(request: Request, birth: str, height: int, weight: int, sex: int, tags: list[str], idx: int = -1):
     """
     baby 수정에만 사용
+    idx에 -1을 넣어서 append한다.
     """
-
-    return
+    nickname: str = request.cookies.get("session") or ""
+    if not nickname:
+        return {
+            "code" : 401,
+            "message" : "Please login"
+        }
+    document: dict = await modules.read("user", "data") or {}
+    data: list[dict] = document["data"]
+    user: dict = {}
+    for idx, item in enumerate(data):
+        if (nickname == item.get("nickname")):
+            user = item
+            break
+    else:
+        return {
+            "code" : 404,
+            "message" : "user not found."
+        }
+    if (idx == -1):
+        user["baby"] = user["baby"].append({
+            "birth" : birth,
+            "height" : height,
+            "weight" : weight,
+            "sex" : sex,
+            "tags" : tags
+        })
+    else:
+        user["baby"][idx] = {
+            "birth" : birth,
+            "height" : height,
+            "weight" : weight,
+            "sex" : sex,
+            "tags" : tags
+        }
+    data[idx] = user
+    await modules.write("user", data)
+    return {
+        "code" : 200,
+        "message" : "successfully fetched."
+    }
 
