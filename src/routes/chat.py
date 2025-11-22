@@ -22,10 +22,31 @@ class UserChat(BaseModel):
     with_: str
     log: List[Message]
 
+    class Config:
+        fields = {"with_": "with"}
+
 
 class ChatRoomSummary(BaseModel):
     with_: str
     last_message: Optional[Message]
+
+    class Config:
+        fields = {"with_": "with"}
+
+
+class ChatListResponse(BaseModel):
+    code: int
+    data: List[ChatRoom]
+
+
+class UserChatResponse(BaseModel):
+    code: int
+    data: List[UserChat]
+
+
+class ChatRoomSummaryResponse(BaseModel):
+    code: int
+    data: List[ChatRoomSummary]
 
 
 class BasicResponse(BaseModel):
@@ -44,6 +65,7 @@ router = APIRouter(
 # ==============================
 @router.get(
     "/chat/list",
+    response_model=ChatListResponse,
     summary="전체 채팅 목록 조회 (관리용)",
     description="DB에 저장된 모든 채팅 데이터를 반환한다."
 )
@@ -67,6 +89,7 @@ async def get_chat_list():
 # ==============================
 @router.get(
     "/chat",
+    response_model=UserChatResponse,
     summary="내 채팅 전체 로그 조회",
     description="로그인한 사용자가 참여한 모든 채팅방의 로그를 반환한다."
 )
@@ -89,7 +112,7 @@ async def get_chat(request: Request):
         if nickname in chat.get("users", []):
             other = [u for u in chat["users"] if u != nickname][0]
             result.append({
-                "with": other,  # 명세서에 맞춰 with 사용
+                "with": other,
                 "log": chat.get("log", [])
             })
 
@@ -105,6 +128,7 @@ async def get_chat(request: Request):
 # ==============================
 @router.get(
     "/chat/rooms",
+    response_model=ChatRoomSummaryResponse,
     summary="채팅방 목록 조회",
     description="로그인한 사용자의 채팅방 리스트와 마지막 메시지를 반환한다."
 )
@@ -129,11 +153,10 @@ async def get_chat_rooms(request: Request):
             last_message = chat["log"][-1] if chat.get("log") else None
 
             rooms.append({
-                "with": other,  # ✅ swagger 명세와 동일
+                "with": other,
                 "last_message": last_message
             })
 
-    # 최신 메시지 기준 정렬
     rooms.sort(key=lambda x: x["last_message"]["when"] if x["last_message"] else "", reverse=True)
 
     return {
@@ -148,6 +171,7 @@ async def get_chat_rooms(request: Request):
 # ==============================
 @router.post(
     "/send",
+    response_model=BasicResponse,
     summary="채팅 메시지 전송",
     description="상대 사용자에게 메시지를 전송하며, 채팅방이 없으면 자동 생성된다."
 )
@@ -166,7 +190,6 @@ async def send_chat(request: Request, other_user: str, content: str):
 
     now = datetime.now().strftime("%Y-%m-%d/%H:%M")
 
-    # 기존 채팅방 찾기
     for chat in chats:
         if set(chat.get("users", [])) == {nickname, other_user}:
             chat["log"].append({
@@ -180,7 +203,6 @@ async def send_chat(request: Request, other_user: str, content: str):
                 "message": "메시지 전송 완료"
             }
 
-    # ✅ 채팅방이 없으면 새로 생성
     new_chat = {
         "users": [nickname, other_user],
         "log": [{
