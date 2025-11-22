@@ -6,7 +6,7 @@ router = APIRouter()
 
 @router.post("/signup")
 async def signup(nickname: str, pw: str):
-    document: dict = await modules.read("user") or {}
+    document: dict = await modules.read("user", "data") or {}
     data: list[dict] = document["data"]
 
     data.append({
@@ -19,11 +19,17 @@ async def signup(nickname: str, pw: str):
 @router.post("/login")
 async def login(nickname: str, pw: str):
     document: dict = await modules.read("user") or {}
-    user = next((u for u in document.get("data", []) if u["nickname"] == nickname and u["pw"] == pw), None)
-    if user:
-        response = Response(content='{"code":200}', media_type="application/json")
+    data: list[dict] = document["data"]
+    for item in data:
+        if(item.get("nickname") != nickname or item.get("pw") != pw):
+            continue
+        response = Response(
+            content='{"code" : 200}', media_type="application/json"
+        )
         response.set_cookie(key="session", value=nickname, httponly=True)
         return response
-    else:
-        return {"code": 401, "message": "Invalid credentials"}
-    return
+    
+    return {
+        "code" : 404,
+        "message" : "user not found"
+    }
