@@ -7,12 +7,13 @@ router = APIRouter()
 @router.post("/signup")
 async def signup(nickname: str, pw: str):
     document: dict = await modules.read("user") or {}
+    data: list[dict] = document["data"]
 
-    document["data"].append({
+    data.append({
         "nickname" : nickname,
         "pw" : pw
     })
-    await modules.write("user", document)
+    await modules.write("user", data)
     return {"code" : 200}
 
 @router.post("/login")
