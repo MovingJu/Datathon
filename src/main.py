@@ -7,6 +7,7 @@ app = FastAPI()
 app.include_router(routes.chat.router)
 app.include_router(routes.sign.router)
 app.include_router(routes.user.router)
+app.include_router(routes.board.router)
 
 @app.get("/")
 async def read_root():
