@@ -1,6 +1,37 @@
 from fastapi import APIRouter, Request
 import modules
 from datetime import datetime
+from pydantic import BaseModel
+from typing import List, Optional
+
+# ==============================
+# Response / Schema Models
+# ==============================
+class Message(BaseModel):
+    who: str
+    when: str
+    content: str
+
+
+class ChatRoom(BaseModel):
+    users: List[str]
+    log: List[Message]
+
+
+class UserChat(BaseModel):
+    with_: str
+    log: List[Message]
+
+
+class ChatRoomSummary(BaseModel):
+    with_: str
+    last_message: Optional[Message]
+
+
+class BasicResponse(BaseModel):
+    code: int
+    message: str
+
 
 router = APIRouter(
     prefix="/chat",
@@ -8,12 +39,18 @@ router = APIRouter(
 )
 
 # ==============================
-# 전체 채팅 목록 불러오기 (관리용)
+# 1. 전체 채팅 목록 불러오기 (관리용)
+# GET /chat/chat/list
 # ==============================
-@router.get("/chat/list")
+@router.get(
+    "/chat/list",
+    summary="전체 채팅 목록 조회 (관리용)",
+    description="DB에 저장된 모든 채팅 데이터를 반환한다."
+)
 async def get_chat_list():
     """
-    DB에 저장된 모든 채팅 데이터를 반환 (관리용)
+    ✅ 응답 코드 설명
+    - 200 : 정상적으로 전체 채팅 목록 반환
     """
     document: dict = await modules.read("chat") or {}
     data: list[dict] = document.get("data", [])
@@ -23,15 +60,21 @@ async def get_chat_list():
         "data": data
     }
 
+
 # ==============================
-# 특정 유저들 간 채팅 불러오기 (채팅창)
+# 2. 내 채팅 전체 로그 조회
+# GET /chat/chat
 # ==============================
-@router.get("/chat")
+@router.get(
+    "/chat",
+    summary="내 채팅 전체 로그 조회",
+    description="로그인한 사용자가 참여한 모든 채팅방의 로그를 반환한다."
+)
 async def get_chat(request: Request):
     """
-    로그인한 사용자가 참여한 채팅방의 전체 로그 반환
-    - 입력 파라미터 없음
-    - 로그인 세션에서 nickname 가져옴
+    ✅ 응답 코드 설명
+    - 200 : 채팅 로그 정상 반환
+    - 401 : 로그인 정보 없음
     """
     nickname: str = request.cookies.get("session") or ""
     if not nickname:
@@ -40,28 +83,36 @@ async def get_chat(request: Request):
     document = await modules.read("chat") or {}
     chats = document.get("data", [])
 
-    user_chats = []
+    result = []
 
     for chat in chats:
         if nickname in chat.get("users", []):
-            # 상대방 찾기
             other = [u for u in chat["users"] if u != nickname][0]
-            # 통째로 로그 추가
-            user_chats.append({
-                "with": other,
+            result.append({
+                "with": other,  # 명세서에 맞춰 with 사용
                 "log": chat.get("log", [])
             })
 
-    return {"code": 200, "data": user_chats}
+    return {
+        "code": 200,
+        "data": result
+    }
+
 
 # ==============================
-# 로그인한 사용자 채팅방 목록 (채팅탭)
+# 3. 채팅방 목록 조회
+# GET /chat/chat/rooms
 # ==============================
-@router.get("/chat/rooms")
+@router.get(
+    "/chat/rooms",
+    summary="채팅방 목록 조회",
+    description="로그인한 사용자의 채팅방 리스트와 마지막 메시지를 반환한다."
+)
 async def get_chat_rooms(request: Request):
     """
-    로그인한 사용자가 참여한 채팅방 목록 + 마지막 메시지 반환
-    - 파라미터 없이 호출
+    ✅ 응답 코드 설명
+    - 200 : 채팅방 목록 정상 반환
+    - 401 : 로그인 필요
     """
     nickname: str = request.cookies.get("session") or ""
     if not nickname:
@@ -71,23 +122,41 @@ async def get_chat_rooms(request: Request):
     chats = document.get("data", [])
 
     rooms = []
+
     for chat in chats:
         if nickname in chat.get("users", []):
             other = [u for u in chat["users"] if u != nickname][0]
-            last_message = chat["log"][-1] if chat.get("log") else {}
+            last_message = chat["log"][-1] if chat.get("log") else None
+
             rooms.append({
-                "with": other,
+                "with": other,  # ✅ swagger 명세와 동일
                 "last_message": last_message
             })
 
-    # 최신 메시지 기준 내림차순 정렬
-    rooms.sort(key=lambda x: x["last_message"].get("when", ""), reverse=True)
+    # 최신 메시지 기준 정렬
+    rooms.sort(key=lambda x: x["last_message"]["when"] if x["last_message"] else "", reverse=True)
 
-    return {"code": 200, "data": rooms}
+    return {
+        "code": 200,
+        "data": rooms
+    }
 
 
-@router.post("/send")
+# ==============================
+# 4. 채팅 메시지 전송
+# POST /chat/send
+# ==============================
+@router.post(
+    "/send",
+    summary="채팅 메시지 전송",
+    description="상대 사용자에게 메시지를 전송하며, 채팅방이 없으면 자동 생성된다."
+)
 async def send_chat(request: Request, other_user: str, content: str):
+    """
+    ✅ 응답 코드 설명
+    - 200 : 메시지 전송 완료 (신규/기존 채팅방 동일)
+    - 401 : 로그인 필요
+    """
     nickname = request.cookies.get("session") or ""
     if not nickname:
         return {"code": 401, "message": "로그인 필요"}
@@ -97,6 +166,7 @@ async def send_chat(request: Request, other_user: str, content: str):
 
     now = datetime.now().strftime("%Y-%m-%d/%H:%M")
 
+    # 기존 채팅방 찾기
     for chat in chats:
         if set(chat.get("users", [])) == {nickname, other_user}:
             chat["log"].append({
@@ -104,15 +174,13 @@ async def send_chat(request: Request, other_user: str, content: str):
                 "when": now,
                 "content": content
             })
-
             await modules.write("chat", chats)
-
             return {
                 "code": 200,
                 "message": "메시지 전송 완료"
             }
 
-    # 채팅방이 없으면 새로 생성
+    # ✅ 채팅방이 없으면 새로 생성
     new_chat = {
         "users": [nickname, other_user],
         "log": [{
@@ -126,6 +194,6 @@ async def send_chat(request: Request, other_user: str, content: str):
     await modules.write("chat", chats)
 
     return {
-        "code": 201,
-        "message": "새 채팅방 생성 및 메시지 전송"
+        "code": 200,
+        "message": "메시지 전송 완료"
     }
