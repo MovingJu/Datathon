@@ -173,7 +173,7 @@ async def get_chat_rooms(request: Request):
     "/send",
     response_model=BasicResponse,
     summary="채팅 메시지 전송",
-    description="상대 사용자에게 메시지를 전송하며, 채팅방이 없으면 자동 생성된다."
+    description="상대 사용자에게 메시지를 전송하며, 채팅방이 없으면 자동 생성된다." 
 )
 async def send_chat(request: Request, other_user: str, content: str):
     """
