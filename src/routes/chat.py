@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 import modules
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 # ==============================
@@ -19,19 +19,21 @@ class ChatRoom(BaseModel):
 
 
 class UserChat(BaseModel):
-    with_: str
+    with_: str = Field(..., alias="with")
     log: List[Message]
 
-    class Config:
-        fields = {"with_": "with"}
+    model_config = {
+        "populate_by_name": True
+    }
 
 
 class ChatRoomSummary(BaseModel):
-    with_: str
+    with_: str = Field(..., alias="with")
     last_message: Optional[Message]
 
-    class Config:
-        fields = {"with_": "with"}
+    model_config = {
+        "populate_by_name": True
+    }
 
 
 class ChatListResponse(BaseModel):
@@ -90,8 +92,9 @@ async def get_chat_list():
 @router.get(
     "/chat",
     response_model=UserChatResponse,
-    summary="내 채팅 전체 로그 조회",
-    description="로그인한 사용자가 참여한 모든 채팅방의 로그를 반환한다."
+    responses={
+        401: {"model": BasicResponse}
+    }
 )
 async def get_chat(request: Request):
     """
@@ -101,7 +104,8 @@ async def get_chat(request: Request):
     """
     nickname: str = request.cookies.get("session") or ""
     if not nickname:
-        return {"code": 401, "message": "로그인 정보가 없습니다."}
+        return BasicResponse(code=401, message="로그인 정보가 없습니다.")
+
 
     document = await modules.read("chat") or {}
     chats = document.get("data", [])
