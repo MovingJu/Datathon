@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 import modules
+from datetime import datetime
 
 router = APIRouter(
     prefix="/chat",
@@ -83,3 +84,48 @@ async def get_chat_rooms(request: Request):
     rooms.sort(key=lambda x: x["last_message"].get("when", ""), reverse=True)
 
     return {"code": 200, "data": rooms}
+
+
+@router.post("/send")
+async def send_chat(request: Request, other_user: str, content: str):
+    nickname = request.cookies.get("session") or ""
+    if not nickname:
+        return {"code": 401, "message": "로그인 필요"}
+
+    document = await modules.read("chat") or {}
+    chats = document.get("data", [])
+
+    now = datetime.now().strftime("%Y-%m-%d/%H:%M")
+
+    for chat in chats:
+        if set(chat.get("users", [])) == {nickname, other_user}:
+            chat["log"].append({
+                "who": nickname,
+                "when": now,
+                "content": content
+            })
+
+            await modules.write("chat", chats)
+
+            return {
+                "code": 200,
+                "message": "메시지 전송 완료"
+            }
+
+    # 채팅방이 없으면 새로 생성
+    new_chat = {
+        "users": [nickname, other_user],
+        "log": [{
+            "who": nickname,
+            "when": now,
+            "content": content
+        }]
+    }
+
+    chats.append(new_chat)
+    await modules.write("chat", chats)
+
+    return {
+        "code": 201,
+        "message": "새 채팅방 생성 및 메시지 전송"
+    }
