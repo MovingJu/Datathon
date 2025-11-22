@@ -45,7 +45,7 @@ router = APIRouter(
 @router.get(
     "/chat/list",
     summary="전체 채팅 목록 조회 (관리용)",
-    description="DB에 저장된 모든 채팅 데이터를 반환한다."
+    description="DB에 저장된 모든 채팅 데이터를 반환한다.",
 )
 async def get_chat_list():
     """
