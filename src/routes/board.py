@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+from pydantic import BaseModel
 import modules
 
 router = APIRouter(
@@ -62,135 +63,67 @@ async def content(board_id: int):
         "code" : 403,
         "message" : "Title not found."
     }
+
+# ----- Pydantic 모델 -----
+class WritingModel(BaseModel):
+    title: str
+    writer: str
+    board: str
+    date: str
+    content: str
+
+class ModifyWritingModel(WritingModel):
+    board_id: int
+
+class AddWritingModel(WritingModel):
+    pass
+
+# ----- Endpoints -----
 @router.post("/modify")
-async def modify(request: Request, board_id: int, user_input: modules.Writing):
+async def modify(request: Request, body: ModifyWritingModel):
     nickname: str = request.cookies.get("session") or ""
     document: dict = await modules.read("board", "writings") or {}
-    data = document.get("writings")
-    if(not data):
-        return {
-            "code" : 403,
-            "message" : "Please check database."
-        }
-    target: dict = {}
+    data = document.get("writings") or []
+
+    target_idx = None
     for idx, writing in enumerate(data):
-        if(writing.get("id") == board_id):
-            target = writing
+        if writing.get("id") == body.board_id:
+            target_idx = idx
             break
     else:
-        return {
-            "code" : 403,
-            "message" : "Title not found."
-        }
-    if (nickname != target.get("writer")):
-        return {
-            "code" : 401,
-            "message" : "Not your writing."
-        }
-    
-    data[idx] = {
-        "id" : data[idx]["id"],
-        "title" : user_input.title,
-        "writer" : user_input.writer,
-        "board" : user_input.board,
-        "date" : user_input.date,
-        "content" : user_input.content,
+        return {"code": 403, "message": "Title not found."}
+
+    if nickname != data[target_idx].get("writer"):
+        return {"code": 401, "message": "Not your writing."}
+
+    data[target_idx] = {
+        "id": data[target_idx]["id"],
+        "title": body.title,
+        "writer": body.writer,
+        "board": body.board,
+        "date": body.date,
+        "content": body.content,
     }
     await modules.write("board", data, "writings")
-    return {
-        "code" : 200,
-        "message" : "Modify successfully."
-    }
+    return {"code": 200, "message": "Modify successfully."}
+
+
 @router.post("/add")
-async def add(request: Request, user_input: modules.Writing):
+async def add(request: Request, body: AddWritingModel):
     nickname: str = request.cookies.get("session") or ""
     document: dict = await modules.read("board", "writings") or {}
-    data = document.get("writings")
-    if(not data):
-        return {
-            "code" : 403,
-            "message" : "Please check database."
-        }
-    biggest_id = -1
-    for item in data:
-        if (biggest_id < item.get("id") or -2):
-            biggest_id = item["id"]
+    data = document.get("writings") or []
+
+    # ID 자동 증가
+    biggest_id = max((item.get("id", -1) for item in data), default=-1)
+
     data.append({
-        "id" : biggest_id+1,
-        "title" : user_input.title,
-        "writer" : user_input.writer,
-        "board" : user_input.board,
-        "date" : user_input.date,
-        "content" : user_input.content,
+        "id": biggest_id + 1,
+        "title": body.title,
+        "writer": body.writer,
+        "board": body.board,
+        "date": body.date,
+        "content": body.content,
     })
     await modules.write("board", data, "writings")
-    return {
-        "code" : 200,
-        "message" : "Add successfully."
-    }
-@router.delete("/delete")
-async def delete(request: Request, board_id: int):
-    nickname: str = request.cookies.get("session") or ""
-    document: dict = await modules.read("board", "writings") or {}
-    data = document.get("writings")
-    if not data:
-        return {
-            "code": 403,
-            "message": "Please check database."
-        }
-    for idx, writing in enumerate(data):
-        if writing.get("id") != board_id:
-            continue
-        if writing.get("writer") != nickname:
-            return {
-                "code": 401,
-                "message": "Not your writing."
-            }
-        del data[idx]
-        await modules.write("board", data, "writings")
-        return {
-            "code": 200,
-            "message": "Delete successfully."
-        }
-    return {
-        "code": 403,
-        "message": "Title not found."
-    }
-@router.get("/like")
-async def like(request: Request, board_id: int):
-    nickname: str = request.cookies.get("session") or ""
-    document: dict = await modules.read("board", "writings") or {}
-    data = document.get("writings")
-    if not data:
-        return {
-            "code": 403,
-            "message": "Please check database."
-        }
-    for idx, writing in enumerate(data):
-        if writing.get("id") != board_id:
-            continue
-        if writing.get("writer") != nickname:
-            return {
-                "code": 401,
-                "message": "Not your writing."
-            }
-        if(not data[idx].get("liked")):
-            return {
-                "code" : 403,
-                "message" : "Please check database."
-            }
-        if(nickname in data[idx]["liked"]):
-            return {
-                "code" : 403,
-                "message" : "Already Liked."
-            }
-        data[idx]["liked"].append(nickname)
-        await modules.write("board", data, "writings")
-        return {
-            "code": 200,
-            "message": "Liked successfully."
-        }
-    return {
-        "code": 403,
-        "message": "Title not found."
-    }
+    return {"code": 200, "message": "Add successfully."}

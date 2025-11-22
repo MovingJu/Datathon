@@ -1,13 +1,23 @@
 services:
-  db:
-    image: mongo:latest
-    container_name: mongo
-    restart: always
+  # db:
+  #   image: mongo:latest
+  #   container_name: mongo
+  #   restart: always
+  #   ports:
+  #     - "27017:27017"
+  #   volumes:
+  #     - mongo_data:/data/db
+  backend:
+    image: movingju/test:datathon_backend
+    build: ./.
     ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
+      - "8080:8080"
+  frontend:
+    image: moovingju/test:datathon_frontend
+    build: ./ssukssuk-closet/.
+    ports: 
+      - "80:8080"
   
 
-volumes:
-  mongo_data:
+# volumes:
+#   mongo_data:
