@@ -92,20 +92,12 @@ async def get_chat_list():
 @router.get(
     "/chat",
     response_model=UserChatResponse,
-    responses={
-        401: {"model": BasicResponse}
-    }
+    responses={401: {"model": BasicResponse}}
 )
 async def get_chat(request: Request):
-    """
-    ✅ 응답 코드 설명
-    - 200 : 채팅 로그 정상 반환
-    - 401 : 로그인 정보 없음
-    """
     nickname: str = request.cookies.get("session") or ""
     if not nickname:
         return BasicResponse(code=401, message="로그인 정보가 없습니다.")
-
 
     document = await modules.read("chat") or {}
     chats = document.get("data", [])
@@ -115,15 +107,15 @@ async def get_chat(request: Request):
     for chat in chats:
         if nickname in chat.get("users", []):
             other = [u for u in chat["users"] if u != nickname][0]
-            result.append({
-                "with": other,
-                "log": chat.get("log", [])
-            })
+            result.append(
+                UserChat(
+                    with_=other,
+                    log=chat.get("log", [])
+                )
+            )
 
-    return {
-        "code": 200,
-        "data": result
-    }
+    return UserChatResponse(code=200, data=result)
+
 
 
 # ==============================
@@ -133,18 +125,12 @@ async def get_chat(request: Request):
 @router.get(
     "/chat/rooms",
     response_model=ChatRoomSummaryResponse,
-    summary="채팅방 목록 조회",
-    description="로그인한 사용자의 채팅방 리스트와 마지막 메시지를 반환한다."
+    responses={401: {"model": BasicResponse}}
 )
 async def get_chat_rooms(request: Request):
-    """
-    ✅ 응답 코드 설명
-    - 200 : 채팅방 목록 정상 반환
-    - 401 : 로그인 필요
-    """
     nickname: str = request.cookies.get("session") or ""
     if not nickname:
-        return {"code": 401, "message": "로그인 정보가 없습니다."}
+        return BasicResponse(code=401, message="로그인 정보가 없습니다.")
 
     document = await modules.read("chat") or {}
     chats = document.get("data", [])
@@ -156,17 +142,15 @@ async def get_chat_rooms(request: Request):
             other = [u for u in chat["users"] if u != nickname][0]
             last_message = chat["log"][-1] if chat.get("log") else None
 
-            rooms.append({
-                "with": other,
-                "last_message": last_message
-            })
+            rooms.append(
+                ChatRoomSummary(
+                    with_=other,
+                    last_message=last_message
+                )
+            )
 
-    rooms.sort(key=lambda x: x["last_message"]["when"] if x["last_message"] else "", reverse=True)
+    return ChatRoomSummaryResponse(code=200, data=rooms)
 
-    return {
-        "code": 200,
-        "data": rooms
-    }
 
 
 # ==============================
@@ -187,7 +171,8 @@ async def send_chat(request: Request, other_user: str, content: str):
     """
     nickname = request.cookies.get("session") or ""
     if not nickname:
-        return {"code": 401, "message": "로그인 필요"}
+        return BasicResponse(code=401, message="로그인 정보가 없습니다.")
+
 
     document = await modules.read("chat") or {}
     chats = document.get("data", [])
