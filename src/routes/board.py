@@ -35,7 +35,7 @@ async def info(board_name: str):
         response.append({
             "id" : writing.get("id"),
             "writer" : writing.get("writer"),
-            "liked" : writing.get("liked"),
+            "liked" : len(writing.get("liked")),
             "comments" : len(writing.get("comment") or [])
         })
     return {
@@ -53,6 +53,7 @@ async def content(board_id: int):
         }   
     for writing in data:
         if(writing.get("id") == board_id):
+            writing["liked"] = len(writing["liked"])
             return {
                 "code" : 200,
                 "data" : writing
@@ -94,7 +95,6 @@ async def modify(request: Request, board_id: int, user_input: modules.Writing):
         "board" : user_input.board,
         "date" : user_input.date,
         "content" : user_input.content,
-        "liked" : user_input.liked
     }
     await modules.write("board", data, "writings")
     return {
@@ -111,17 +111,86 @@ async def add(request: Request, user_input: modules.Writing):
             "code" : 403,
             "message" : "Please check database."
         }
+    biggest_id = -1
+    for item in data:
+        if (biggest_id < item.get("id") or -2):
+            biggest_id = item["id"]
     data.append({
-        "id" : len(data)+1,
-        "title" : nickname,
+        "id" : biggest_id+1,
+        "title" : user_input.title,
         "writer" : user_input.writer,
         "board" : user_input.board,
         "date" : user_input.date,
         "content" : user_input.content,
-        "liked" : user_input.liked
     })
     await modules.write("board", data, "writings")
     return {
         "code" : 200,
-        "message" : "Modify successfully."
+        "message" : "Add successfully."
+    }
+@router.delete("/delete")
+async def delete(request: Request, board_id: int):
+    nickname: str = request.cookies.get("session") or ""
+    document: dict = await modules.read("board", "writings") or {}
+    data = document.get("writings")
+    if not data:
+        return {
+            "code": 403,
+            "message": "Please check database."
+        }
+    for idx, writing in enumerate(data):
+        if writing.get("id") != board_id:
+            continue
+        if writing.get("writer") != nickname:
+            return {
+                "code": 401,
+                "message": "Not your writing."
+            }
+        del data[idx]
+        await modules.write("board", data, "writings")
+        return {
+            "code": 200,
+            "message": "Delete successfully."
+        }
+    return {
+        "code": 403,
+        "message": "Title not found."
+    }
+@router.get("/like")
+async def like(request: Request, board_id: int):
+    nickname: str = request.cookies.get("session") or ""
+    document: dict = await modules.read("board", "writings") or {}
+    data = document.get("writings")
+    if not data:
+        return {
+            "code": 403,
+            "message": "Please check database."
+        }
+    for idx, writing in enumerate(data):
+        if writing.get("id") != board_id:
+            continue
+        if writing.get("writer") != nickname:
+            return {
+                "code": 401,
+                "message": "Not your writing."
+            }
+        if(not data[idx].get("liked")):
+            return {
+                "code" : 403,
+                "message" : "Please check database."
+            }
+        if(nickname in data[idx]["liked"]):
+            return {
+                "code" : 403,
+                "message" : "Already Liked."
+            }
+        data[idx]["liked"].append(nickname)
+        await modules.write("board", data, "writings")
+        return {
+            "code": 200,
+            "message": "Liked successfully."
+        }
+    return {
+        "code": 403,
+        "message": "Title not found."
     }
