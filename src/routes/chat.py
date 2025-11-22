@@ -68,6 +68,10 @@ class BasicResponse(BaseModel):
     code: int
     message: str
 
+class SendChatRequest(BaseModel):
+    other_user: str
+    content: str
+
 
 # ==================================================
 # 2. Router 설정
@@ -182,7 +186,7 @@ async def get_chat_rooms(request: Request):
     summary="채팅 메시지 전송",
     description="상대 사용자에게 메시지를 전송하며 채팅방이 없으면 자동 생성된다."
 )
-async def send_chat(request: Request, other_user: str, content: str):
+async def send_chat(request: Request, data: SendChatRequest):
     """
     ✅ 응답 코드 설명
     - 200 : 메시지 전송 완료
@@ -197,24 +201,24 @@ async def send_chat(request: Request, other_user: str, content: str):
 
     now = datetime.now().strftime("%Y-%m-%d/%H:%M")
 
-    # 기존 채팅방 존재 여부 확인
+    # 기존 채팅방 확인
     for chat in chats:
-        if set(chat.get("users", [])) == {nickname, other_user}:
+        if set(chat.get("users", [])) == {nickname, data.other_user}:
             chat["log"].append({
                 "who": nickname,
                 "when": now,
-                "content": content
+                "content": data.content
             })
             await modules.write("chat", chats)
             return BasicResponse(code=200, message="메시지 전송 완료")
 
-    # 채팅방 없으면 새로 생성
+    # 채팅방 없으면 생성
     new_chat = {
-        "users": [nickname, other_user],
+        "users": [nickname, data.other_user],
         "log": [{
             "who": nickname,
             "when": now,
-            "content": content
+            "content": data.content
         }]
     }
 
